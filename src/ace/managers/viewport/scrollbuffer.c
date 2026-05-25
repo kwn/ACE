@@ -393,7 +393,11 @@ void scrollBufferReset(
 
 	scrollBufferDestroyOwnedBitmaps(pManager);
 
+	// Create new buffer bitmap. Ensure width is aligned to the fetch block size
+	// so that BytesPerRow is a multiple of the fetch alignment (2/4/8 bytes).
 	UWORD uwCalcWidth = uwVpWidth + ubMarginWidth * 2 * (ACE_SCROLLBUFFER_X_MARGIN_SIZE + SCROLLBUFFER_X_DRAW_MARGIN_SIZE);
+	UWORD uwFetchBlockPixels = fetchModeGetFetchBlockPixels(pManager->sCommon.pVPort);
+	uwCalcWidth = ((uwCalcWidth + uwFetchBlockPixels - 1) / uwFetchBlockPixels) * uwFetchBlockPixels;
 	UWORD uwCalcHeight = pManager->uwBmAvailHeight + blockCountCeil(uwBoundWidth, uwVpWidth) - 1;
 
 	if(pCustomBack) {

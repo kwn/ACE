@@ -17,6 +17,20 @@ static inline UBYTE fetchModeGetBitplaneFmode(const tVPort *pVPort) {
 #endif
 }
 
+static inline UWORD fetchModeGetFetchBlockPixels(const tVPort *pVPort) {
+	UBYTE ubBitplaneFmode = fetchModeGetBitplaneFmode(pVPort);
+
+	if(ubBitplaneFmode == 3) {
+		return 64;
+	}
+
+	if(ubBitplaneFmode == 1 || ubBitplaneFmode == 2) {
+		return 32;
+	}
+
+	return 16;
+}
+
 static inline UWORD fetchModeGetDDfStep(const tVPort *pVPort) {
 	UWORD uwWidth = pVPort->pView->uwWidth;
 	UBYTE ubBitplaneFmode = fetchModeGetBitplaneFmode(pVPort);
@@ -26,7 +40,7 @@ static inline UWORD fetchModeGetDDfStep(const tVPort *pVPort) {
 	}
 
 	if(ubBitplaneFmode == 3) {
-		return ((uwWidth / 16) - 1) * 6;
+		return ((uwWidth / 64) - 1) * 32;
 	}
 
 	return ((uwWidth / 16) - 1) * 8;
@@ -54,7 +68,7 @@ static inline UWORD fetchModeGetScrollDDfStartAdjust(const tVPort *pVPort) {
 	}
 
 	if(ubBitplaneFmode == 3) {
-		return 24;
+		return 32;
 	}
 
 	return 8;
@@ -76,15 +90,7 @@ static inline void fetchModeApplyXScrollCopper(
 static inline void fetchModeApplyScrollBufferXScrollCopper(
 	const tVPort *pVPort, UWORD *pDDfStrt, UWORD *pModulo
 ) {
-	UWORD uwDDfStartAdjust = fetchModeGetScrollDDfStartAdjust(pVPort);
-
-	// Scrollbuffer uses a circular/corkscrew bitmap layout. FMODE 3 still
-	// needs the wider fetch modulo, but starting one extra fetch block earlier
-	// causes a 64 px ghost after the vertical wrap.
-	if(fetchModeGetBitplaneFmode(pVPort) == 3) {
-		uwDDfStartAdjust = 16;
-	}
-	*pDDfStrt -= uwDDfStartAdjust;
+	*pDDfStrt -= fetchModeGetScrollDDfStartAdjust(pVPort);
 	*pModulo -= fetchModeGetScrollPrefetchBytes(pVPort);
 }
 
@@ -97,25 +103,47 @@ static inline LONG fetchModeGetInitialBplOffset(const tVPort *pVPort) {
 }
 
 static inline UWORD fetchModeCalcBplShift(const tVPort *pVPort, UWORD uwScrollX) {
-	UWORD uwShift = (16 - (uwScrollX & 0xF)) & 0xF;
+	UBYTE ubBitplaneFmode = fetchModeGetBitplaneFmode(pVPort);
+	UWORD uwShift;
 
-	if(pVPort->eFlags & VP_FLAG_HIRES) {
-		uwShift >>= 1; // Usable scroll values are 0..7, shifts 2 pixels per value
+	if(ubBitplaneFmode == 3) {
+		uwShift = (64 - (uwScrollX & 0x3F)) & 0x3F;
+	}
+	else if(ubBitplaneFmode == 1 || ubBitplaneFmode == 2) {
+		uwShift = (32 - (uwScrollX & 0x1F)) & 0x1F;
+	}
+	else {
+		uwShift = (16 - (uwScrollX & 0xF)) & 0xF;
 	}
 
-	return (uwShift << 4) | uwShift;
+	if(pVPort->eFlags & VP_FLAG_HIRES) {
+		uwShift >>= 1;
+	}
+
+	// AGA BPLCON1 (PF1H/PF2H delay):
+	// bits 0-3 = PF1H[0:3] (delay 0-15 for odd planes)
+	// bits 4-7 = PF2H[0:3] (delay 0-15 for even planes)
+	// bits 10-11 = PF1H[6:7] (delay 16, 32 for odd planes)
+	// bits 14-15 = PF2H[6:7] (delay 16, 32 for even planes)
+	UWORD uwLow = uwShift & 0xF;
+	UWORD uwHigh = (uwShift >> 4) & 0x3;
+	return uwLow | (uwLow << 4) | (uwHigh << 10) | (uwHigh << 14);
 }
 
 static inline LONG fetchModeCalcBplOffsetX(const tVPort *pVPort, UWORD uwScrollX) {
-	LONG lBplAddX = (((LONG)uwScrollX - 1) >> 4) << 1;
 	UBYTE ubBitplaneFmode = fetchModeGetBitplaneFmode(pVPort);
+	LONG lBplAddX = (((LONG)uwScrollX - 1) >> 4) << 1;
 
-	if((pVPort->eFlags & VP_FLAG_HIRES) || ubBitplaneFmode == 1 || ubBitplaneFmode == 2) {
+	if(pVPort->eFlags & VP_FLAG_HIRES) {
 		return lBplAddX - 2;
 	}
 
 	if(ubBitplaneFmode == 3) {
-		return lBplAddX + 2;
+		return (((LONG)uwScrollX - 1) >> 6) << 3;
+	}
+
+	if(ubBitplaneFmode == 1 || ubBitplaneFmode == 2) {
+		return (((LONG)uwScrollX - 1) >> 5) << 2;
 	}
 
 	return lBplAddX;
