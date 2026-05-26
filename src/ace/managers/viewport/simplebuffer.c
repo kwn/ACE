@@ -78,7 +78,7 @@ static void simpleBufferInitializeCopperList(
 			"Setting copperlist %p at offs %u\n",
 			pCopList->pBackBfr, pManager->uwCopperOffset
 		);
-		copSetWait(&pCmdList[0].sWait, s_pCopperWaitXByBitplanes[pManager->sCommon.pVPort->ubBpp], (
+		copSetWait(&pCmdList[0].sWait, fetchModeGetCopWaitX(pVPort, uwDDfStop), (
 			pManager->sCommon.pVPort->uwOffsY +
 			pManager->sCommon.pVPort->pView->ubPosY -1
 		));
@@ -288,7 +288,7 @@ tSimpleBufferManager *simpleBufferCreate(void *pTags, ...) {
 			pCopList, simpleBufferGetRawCopperlistInstructionCount(pVPort->ubBpp) - 1,
 			// Vertically addition from DiWStrt, horizontally just so that 6bpp can be set up.
 			// First to set are ddf, modulos & shift so they are changed during fetch.
-			s_pCopperWaitXByBitplanes[pVPort->ubBpp],
+			0x7F,
 			 pVPort->uwOffsY + pVPort->pView->ubPosY - 1
 		);
 	}
