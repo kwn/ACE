@@ -64,27 +64,19 @@ static void tileBufferQueueAdd(
 	tTileBufferManager *pManager, UWORD uwTileX, UWORD uwTileY
 ) {
 	// Add two times so that they're drawn properly in double buffering
-#if defined ACE_DEBUG
 	if(
-		pManager->pRedrawStates[0].ubPendingCount > pManager->ubQueueSize - 2 ||
-		pManager->pRedrawStates[1].ubPendingCount > pManager->ubQueueSize - 2
+		pManager->pRedrawStates[0].ubPendingCount >= pManager->ubQueueSize ||
+		pManager->pRedrawStates[1].ubPendingCount >= pManager->ubQueueSize
 	) {
-		logWrite("ERR: No more space in redraw queue");
+		logWrite("ERR: No more space in redraw queue\n");
 		return;
 	}
-#endif
 	tRedrawState *pState = &pManager->pRedrawStates[0];
-	if(pState->ubPendingCount >= pManager->ubQueueSize) {
-		logWrite("ERR: Pending tiles queue overflow\n");
-	}
 	pState->pPendingQueue[pState->ubPendingCount].uwX = uwTileX;
 	pState->pPendingQueue[pState->ubPendingCount].uwY = uwTileY;
 	++pState->ubPendingCount;
 
 	pState = &pManager->pRedrawStates[1];
-	if(pState->ubPendingCount >= pManager->ubQueueSize) {
-		logWrite("ERR: Pending tiles queue overflow\n");
-	}
 	pState->pPendingQueue[pState->ubPendingCount].uwX = uwTileX;
 	pState->pPendingQueue[pState->ubPendingCount].uwY = uwTileY;
 	++pState->ubPendingCount;
